@@ -1,10 +1,11 @@
+require('dotenv').config();
 const axios = require('axios');
 const cheerio = require('cheerio');
 const express = require('express');
-const fs = require('fs');
 const { performance } = require('perf_hooks');
-const path = require('path');
 const app = express();
+
+console.log(process.env.GEMINI_KEY);
 
 // Regular expression to extract email patterns
 function extractEmails(text) {
@@ -19,25 +20,25 @@ const getGeminiResponse = async (dom) => {
       {
         parts: [
           {
-            text: `YOU ARE THE WORLD'S BEST EXPERT IN EXTRACTING SPECIFIC ELEMENT INFORMATION FROM THE DOM OF A WEBSITE. YOUR TASK IS TO METICULOUSLY PARSE THE PROVIDED DOM TO EXTRACT THE CLASS OR ID OF THE COMMENT (INPUT) ELEMENT AND PRESENT IT IN A WELL-DEFINED JSON FORMAT SUITABLE FOR FURTHER MANIPULATIONS WITHIN A CODEBASE.
+            text: `YOU ARE THE WORLD'S BEST EXPERT IN EXTRACTING SPECIFIC ELEMENT INFORMATION FROM THE DOM OF A WEBSITE. YOUR TASK IS TO METICULOUSLY PARSE THE PROVIDED DOM TO EXTRACT THE EMAIL ADDRESS, CLASS OR ID OF THE COMMENT (INPUT) ELEMENT, SERVICES, ADDRESSES, AND TESTIMONIALS AND PRESENT THEM IN A WELL-DEFINED JSON FORMAT SUITABLE FOR FURTHER MANIPULATIONS WITHIN A CODEBASE.
 
             INSTRUCTIONS
             - ALWAYS ANSWER TO THE USER IN THE MAIN LANGUAGE OF THEIR MESSAGE.
-            - YOU MUST PARSE THE PROVIDED DOM TO IDENTIFY THE COMMENT (INPUT) ELEMENT AND EXTRACT ITS CLASS OR ID.
+            - YOU MUST PARSE THE PROVIDED DOM TO IDENTIFY AND EXTRACT THE SPECIFIED ELEMENTS.
             - OUTPUT THE EXTRACTED DATA IN A WELL-DEFINED JSON FORMAT.
              
             Chain of Thoughts
             Follow the instructions in the strict order:
             1. Understanding User Requirements:
-               1.1. Carefully read and understand the specific element (comment input) specified by the user.
-               1.2. Ensure clarity on the exact information required (class or ID).
+               1.1. Carefully read and understand the specific elements specified by the user.
+               1.2. Ensure clarity on the exact information required (email address, class or ID, services, addresses, testimonials).
              
             2. Parsing the DOM:
                2.1. Analyze the provided DOM structure.
-               2.2. Identify and locate HTML elements and attributes that represent the comment (input) element.
+               2.2. Identify and locate HTML elements and attributes that represent the specified elements.
              
             3. Extracting Information:
-               3.1. Extract the class or ID of the comment (input) element, ensuring validity and correctness.
+               3.1. Extract the specified elements, ensuring validity and correctness.
              
             4. Formatting Output:
                4.1. Organize the extracted data into a JSON format.
@@ -49,10 +50,14 @@ const getGeminiResponse = async (dom) => {
              
             Example JSON Output Format
             {
+              "emails": ["example1@example.com", "example2@example.com"],
               "comment_input": {
                 "class": "comment-input-class",
                 "id": "comment-input-id"
-              }
+              },
+              "services": ["Service 1", "Service 2"],
+              "addresses": ["Address 1", "Address 2"],
+              "testimonials": ["Testimonial 1", "Testimonial 2"]
             }
              
             What Not To Do
@@ -73,15 +78,12 @@ const getGeminiResponse = async (dom) => {
     ],
   };
 
-  const response = await axios.post(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=AIzaSyAOZU5wksoj43gcqc2EvIR8BPMD0gqMkDc',
-    body
-  );
+  const response = await axios.post(process.env.GEMINI_KEY, body);
 
   return response.data;
 };
 
-const getScrapingdata = async (url) => {
+const getScrapingData = async (url) => {
   try {
     const startTime = performance.now();
     const { data } = await axios.get(url);
@@ -118,7 +120,7 @@ const getScrapingdata = async (url) => {
       geminiResponses = geminiResponsesText;
     }
 
-    return { geminiResponses, time };
+    return { geminiResponses, emails, time };
   } catch (error) {
     console.error('Error:', error);
     return { url, error };
@@ -128,15 +130,18 @@ const getScrapingdata = async (url) => {
 // Route to scrape data from the URL and return the results
 app.get('/scrape', async (req, res) => {
   try {
-    const urls = ['https://www.quora.com/'];
+    const urls = ['https://vetteltech.com/'];
     const scrapingResults = await Promise.all(
-      urls.map((url) => getScrapingdata(url))
+      urls.map((url) => getScrapingData(url))
     );
 
-    const results = scrapingResults.map(({ geminiResponses, time }) => ({
-      geminiResponses,
-      time,
-    }));
+    const results = scrapingResults.map(
+      ({ geminiResponses, emails, time }) => ({
+        geminiResponses,
+        emails,
+        time,
+      })
+    );
 
     res.status(200).json(results);
   } catch (error) {
