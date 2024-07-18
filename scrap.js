@@ -14,17 +14,17 @@ function extractEmails(text) {
 }
 
 // Function to get response from the Gemini API
-const getGeminiResponse = async (dom) => {
+const getGeminiResponse = async (text) => {
   const body = {
     contents: [
       {
         parts: [
           {
-            text: `YOU ARE THE WORLD'S BEST EXPERT IN EXTRACTING SPECIFIC ELEMENT INFORMATION FROM THE DOM OF A WEBSITE. YOUR TASK IS TO METICULOUSLY PARSE THE PROVIDED DOM TO EXTRACT THE EMAIL ADDRESS, CLASS OR ID OF THE COMMENT (INPUT) ELEMENT, SERVICES, ADDRESSES, AND TESTIMONIALS AND PRESENT THEM IN A WELL-DEFINED JSON FORMAT SUITABLE FOR FURTHER MANIPULATIONS WITHIN A CODEBASE.
+            text: `YOU ARE THE WORLD'S BEST EXPERT IN EXTRACTING SPECIFIC ELEMENT INFORMATION FROM THE TEXT OF A WEBSITE. YOUR TASK IS TO METICULOUSLY PARSE THE PROVIDED TEXT TO EXTRACT THE EMAIL ADDRESS, CLASS OR ID OF THE COMMENT (INPUT) ELEMENT, SERVICES, ADDRESSES, AND TESTIMONIALS AND PRESENT THEM IN A WELL-DEFINED JSON FORMAT SUITABLE FOR FURTHER MANIPULATIONS WITHIN A CODEBASE.
 
             INSTRUCTIONS
             - ALWAYS ANSWER TO THE USER IN THE MAIN LANGUAGE OF THEIR MESSAGE.
-            - YOU MUST PARSE THE PROVIDED DOM TO IDENTIFY AND EXTRACT THE SPECIFIED ELEMENTS.
+            - YOU MUST PARSE THE PROVIDED TEXT TO IDENTIFY AND EXTRACT THE SPECIFIED ELEMENTS.
             - OUTPUT THE EXTRACTED DATA IN A WELL-DEFINED JSON FORMAT.
              
             Chain of Thoughts
@@ -33,8 +33,8 @@ const getGeminiResponse = async (dom) => {
                1.1. Carefully read and understand the specific elements specified by the user.
                1.2. Ensure clarity on the exact information required (email address, class or ID, services, addresses, testimonials).
              
-            2. Parsing the DOM:
-               2.1. Analyze the provided DOM structure.
+            2. Parsing the TEXT:
+               2.1. Analyze the provided TEXT structure.
                2.2. Identify and locate HTML elements and attributes that represent the specified elements.
              
             3. Extracting Information:
@@ -70,7 +70,7 @@ const getGeminiResponse = async (dom) => {
             NEVER OMIT VALIDATION OF EXTRACTED INFORMATION.
             NEVER FAIL TO ENSURE THE JSON STRUCTURE IS SUITABLE FOR CODEBASE MANIPULATIONS.
              
-            the dom of the website is: ${dom}
+            the text of the website is: ${text}
             `,
           },
         ],
@@ -144,6 +144,52 @@ app.get('/scrape', async (req, res) => {
     );
 
     res.status(200).json(results);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+async function getTextFromUrl(url)  {
+  try {
+    const response = await axios.post('http://localhost:3200/get-url-text', { url })
+    return response.data;
+  } catch (error) {
+    console.error('Error:', error);
+    return []
+  }
+}
+
+// Route to scrape data from the URL and return the results
+app.get('/scrape-from-text', async (req, res) => {
+  const { url } = req.query;
+  try {
+    const text = await getTextFromUrl(url);
+
+    const response = await getGeminiResponse(text);
+
+    // Extract the response and parse it to JSON
+    const geminiResponsesText =
+      response.candidates[0].content.parts[0].text;
+
+    // Remove unnecessary backticks and newlines
+    const cleanedText = geminiResponsesText
+      .replace(/```json\n/g, '')
+      .replace(/\n```/g, '')
+      .replace('\n', '');
+
+    let geminiResponses;
+    try {
+      geminiResponses = JSON.parse(cleanedText);
+    } catch (error) {
+      console.error('Error parsing JSON:', error);
+      geminiResponses = geminiResponsesText;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: geminiResponses
+    });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).send('Internal Server Error');
