@@ -1,0 +1,52 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '20.16.0'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Add SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ django.pem }}
+          name: id_rsa
+
+      - name: Copy files via SSH
+        run: |
+          ssh -o StrictHostKeyChecking=no -i id_rsa ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} 'rm -rf /home/ubuntu/database/DataSrapper && mkdir /home/ubuntu/database/DataSrapper'
+          scp -o StrictHostKeyChecking=no -i id_rsa -r * ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }}:/home/ubuntu/database/DataSrapper/
+
+      - name: Install dependencies on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i id_rsa ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} 'cd /home/ubuntu/database/DataSrapper && npm install'
+
+      - name: Restart application
+        run: |
+          ssh -o StrictHostKeyChecking=no -i id_rsa ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} 'pm2 restart all || pm2 start /home/ubuntu/database/DataSrapper/scrap.js --name DataSrapper'
