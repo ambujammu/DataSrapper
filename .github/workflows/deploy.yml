@@ -35,7 +35,7 @@ jobs:
       - name: Add SSH key
         uses: shimataro/ssh-key-action@v2
         with:
-          key: ${{ django.pem }}
+          key: ${{ secrets.AWS_SSH_KEY }}
           name: id_rsa
 
       - name: Copy files via SSH
