@@ -36,7 +36,7 @@ jobs:
         uses: shimataro/ssh-key-action@v2
         with:
           key: ${{ secrets.AWS_SSH_KEY }}
-          name: id_rsa
+          name: 52.2.142.241 ssh_rsa
 
       - name: Copy files via SSH
         run: |
