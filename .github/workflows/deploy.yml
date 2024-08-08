@@ -32,21 +32,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Add SSH key
+      - name: Set up SSH key
         uses: shimataro/ssh-key-action@v2
         with:
           key: ${{ secrets.AWS_SSH_KEY }}
-          name: 52.2.142.241 ssh_rsa
+          name: id_rsa
+          known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
 
-      - name: Copy files via SSH
+      - name: Clean up remote directory
         run: |
-          ssh -o StrictHostKeyChecking=no -i id_rsa ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} 'rm -rf /home/ubuntu/DataSrapper && mkdir /home/ubuntu/DataSrapper'
-          scp -o StrictHostKeyChecking=no -i id_rsa -r * ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }}:/home/ubuntu/DataSrapper/
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} 'rm -rf /home/ubuntu/DataSrapper/*'
+
+      - name: Copy files via SSH (excluding node_modules)
+        run: |
+          rsync -avz --exclude 'node_modules' -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa" ./ ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }}:/home/ubuntu/DataSrapper/
 
       - name: Install dependencies on EC2
         run: |
-          ssh -o StrictHostKeyChecking=no -i id_rsa ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} 'cd /home/ubuntu/DataSrapper && npm install'
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} 'cd /home/ubuntu/DataSrapper && npm install'
 
       - name: Restart application
         run: |
-          ssh -o StrictHostKeyChecking=no -i id_rsa ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} 'pm2 restart all || pm2 start /home/ubuntu/DataSrapper/scrap.js --name DataSrapper'
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} '/home/ubuntu/.nvm/versions/node/v20.16.0/bin/pm2 restart all || /home/ubuntu/.nvm/versions/node/v20.16.0/bin/pm2 start /home/ubuntu/DataSrapper/scrap.js --name DataSrapper'
